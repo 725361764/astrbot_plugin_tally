@@ -6,3 +6,4 @@ short_desc: 轻量级记录管理插件
 author: YourName
 repo: https://github.com/YourName/astrbot_plugin_tally
 astrbot_version: ">=4.9.2"
+logo: logo.png
