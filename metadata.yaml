@@ -1,9 +1,9 @@
 name: astrbot_plugin_tally
-display_name: 仓库管理员（自用简易版）
-version: 1.0.0
-desc: 支持记录、扣减、查看表格和动态添加条目的轻量级记录插件
-short_desc: 轻量级记录管理插件
-author: YourName
-repo: https://github.com/YourName/astrbot_plugin_tally
+display_name: 仓库管理员
+version: 2.0.0
+desc: 支持多用户数据隔离的记录、扣减、表格导出插件，适用于库存管理、每日打卡、积分统计等场景（注意：此版本和v1版本数据不同步，数据需要重新归类一下）
+short_desc: 多用户数据记录与管理工具
+author: 请叫我大王
+repo: https://github.com/725361764/astrbot_plugin_tally
 astrbot_version: ">=4.9.2"
 logo: logo.png
