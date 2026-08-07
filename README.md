@@ -1,14 +1,236 @@
-# astrbot-plugin-helloworld
+ **仓管员插件（astrbot_plugin_tally）** 的完整用户文档，包含了所有功能说明、指令示例和常见问题。
+ 
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+---
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+# 📒 仓管员插件使用文档
 
-# Supports
+## 简介
 
-- [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+记录插件是一个轻量级的数据管理工具，支持对任意条目（如“电脑”、“苹果”）进行**增加**、**扣减**、**查看完整历史**和**导出 Excel** 等操作。每次变动都会记录时间、变动量和剩余量，方便追踪。
+
+**适用场景**：库存管理、每日打卡、积分统计、物品借用记录等。
+
+---
+
+## 功能概览
+
+- **记录**：增加某个条目的数量（例如记录 1）
+- **扣减**：减少某个条目的数量（例如扣减 1）
+- **添加**：新增一个条目（初始数量为 0）
+- **表格**：按日期分组显示所有历史操作记录
+- **导出**：将完整记录导出为 `.xlsx` 文件（仅日期列）
+- **帮助**：显示所有命令格式
+
+---
+
+## 安装方法
+
+### 手动安装（推荐）
+
+1. 在 `AstrBot/data/plugins/` 目录下创建插件文件夹：
+   ```bash
+   mkdir astrbot_plugin_tally
+   cd astrbot_plugin_tally
+   ```
+
+2. 将以下文件放入该文件夹：
+   - `main.py`（主程序）
+   - `metadata.yaml`（元数据）
+   - `requirements.txt`（依赖，包含 `openpyxl`）
+
+3. 安装依赖：
+   ```bash
+   pip install openpyxl
+   ```
+
+4. 在 AstrBot WebUI 中启用该插件。
+
+---
+
+## 指令列表
+
+| 指令 | 功能 | 示例 |
+|------|------|------|
+| `记录 名称 数量` | 增加指定条目的数量（数量必须为正） | `记录 电脑 1` |
+| `扣减 名称 数量` | 扣减指定条目的数量（数量必须为正） | `扣减 电脑 1` |
+| `添加 名称` | 新增一个条目（初始数量为 0） | `添加 苹果` |
+| `表格` | 查看所有历史操作记录（按日期分组） | `表格` |
+| `导出` | 将完整记录导出为 Excel 文件 | `导出` |
+| `表格帮助` / `帮助` / `菜单` | 显示帮助信息 | `表格帮助` |
+
+---
+
+## 详细使用说明
+
+### 1. 记录（增加）
+
+**格式**：`记录 名称 数量`
+
+**示例**：
+```
+记录 电脑 1
+```
+**回复**：
+```
+✅ 已记录 电脑 +1，当前共 2
+```
+
+> ⚠️ 数量必须为正整数，如需扣减请使用 `扣减`。
+
+---
+
+### 2. 扣减（减少）
+
+**格式**：`扣减 名称 数量`
+
+**示例**：
+```
+扣减 苹果 1
+```
+**回复**：
+```
+✅ 已扣减 苹果 1，剩余 1
+```
+
+> ⚠️ 若当前数量为 0，会提示无法扣减。
+
+---
+
+### 3. 添加新条目
+
+**格式**：`添加 名称`
+
+**示例**：
+```
+添加 苹果
+```
+**回复**：
+```
+✅ 已添加条目：苹果（当前数量 0）
+```
+
+> 若条目已存在，会提示“已存在，无需重复添加”。
+
+---
+
+### 4. 查看表格
+
+**格式**：`表格`
+
+**回复示例**（手机友好格式）：
+```
+📊 操作记录（共5条）
+时间 | 名称 | 变动 | 剩余
+📅 2026-08-07
+10:05:15 | 美顺 | 0 | 0
+10:05:42 | 美顺 | +1 | 1
+10:11:11 | 美顺 | -1 | 0
+📅 2026-08-08
+09:00:00 | 苹果 | +2 | 2
+📈 总计 2 个  |  📋 美顺=0, 苹果=2
+```
+
+- 日期单独显示（📅），时间仅显示 `时:分:秒`。
+- 变动量：正数显示 `+N`，负数显示 `-N`，0 显示 `0`。
+- 底部显示总数量和详细汇总。
+
+---
+
+### 5. 导出 Excel
+
+**格式**：`导出`
+
+**回复**：
+```
+✅ 已生成导出文件：记录导出_20260807_105432.xlsx
+（随后自动发送文件，或显示文件路径）
+因技术原因暂不支持直接发送文件（也不打算实现此功能，报错属于正常，文件会正常生成，懒得改了）
+```
+
+**导出的 Excel 格式**：
+
+| 日期       | 名称   | 变动 | 剩余 |
+|------------|--------|------|------|
+| 2026-08-07 | 电脑   | 0    | 0    |
+| 2026-08-07 | 电脑   | 1    | 1    |
+| 2026-08-07 | 电脑   | -1   | 0    |
+| 2026-08-08 | 苹果   | 2    | 2    |
+
+- 日期列为 `YYYY-MM-DD` 格式。
+- 按操作时间升序排列。
+
+> 💡 环境不支持自动发送文件，会提示文件路径，您可以通过服务器文件管理工具下载。
+
+---
+
+## 数据存储
+
+数据保存在 `data/plugin_data/astrbot_plugin_tally/tally_data.json`，格式为：
+
+```json
+{
+  "counts": {
+    "电脑": 1,
+    "苹果": 2
+  },
+  "history": [
+    {
+      "time": "2026-08-07 10:05:15",
+      "name": "电脑",
+      "change": 0,
+      "remain": 0
+    },
+    {
+      "time": "2026-08-07 10:05:42",
+      "name": "电脑",
+      "change": 1,
+      "remain": 1
+    }
+  ]
+}
+```
+
+- `counts`：当前各条目总数量。
+- `history`：所有操作明细（按时间顺序）。
+
+---
+
+## 常见问题
+
+### Q1：记录或扣减后，表格不显示变动？
+- 确认操作成功（有回复）。
+- 检查数据文件是否可写（权限问题）。
+
+### Q2：导出的 Excel 文件在哪？
+- 位置：`data/temp/记录导出_时间戳.xlsx`。
+- 如果插件无法自动发送，您可以从该路径手动下载。
+
+### Q3：如何修改已存在的条目？
+- 直接使用 `记录` 或 `扣减` 即可累加或减少。
+
+### Q4：如何删除一个条目？
+- 插件未提供删除指令，您可以直接编辑 JSON 文件，删除对应条目（须确保格式正确）。
+
+### Q5：表格显示太多，能否只显示最近几条？
+- 当前默认显示全部记录，您可以在 `main.py` 的 `_format_table` 中添加切片，如 `for rec in self.history[-20:]:`。
+
+---
+
+## 版本信息
+
+- **插件名称**：astrbot_plugin_tally
+- **版本**：1.0.0
+- **作者**：YourName
+- **适配 AstrBot 版本**：≥4.9.2
+
+---
+
+## 反馈与支持
+
+如有问题或建议，欢迎通过 GitHub 提交 Issue 或联系作者。
+GitHub一般不会看了。
+
+---
+
+**祝您使用愉快！** 📊
