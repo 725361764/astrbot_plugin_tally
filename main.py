@@ -104,9 +104,10 @@ class TallyPlugin(Star):
         self._save_user_data()
 
     def _update_count(self, username: str, name: str, delta: int) -> int:
+        """更新数量，允许负数"""
         counts = self._get_user_counts(username)
         current = counts.get(name, 0)
-        new_count = max(current + delta, 0)
+        new_count = current + delta  # v2.0.1: 移除 max(0) 限制，允许负数
         counts[name] = new_count
         self._add_history(username, name, delta, new_count)
         return new_count
@@ -275,7 +276,7 @@ class TallyPlugin(Star):
     @filter.command("扣减")
     async def deduct(self, event: AstrMessageEvent):
         """
-        减少指定物品或项目的库存数量
+        减少指定物品或项目的库存数量（允许扣减为负数）
         格式：扣减 名称 数量
         """
         username, err = await self._ensure_binding(event)
@@ -300,12 +301,7 @@ class TallyPlugin(Star):
             yield event.plain_result("⚠️ 扣减数量必须为正数")
             return
 
-        counts = self._get_user_counts(username)
-        current = counts.get(name, 0)
-        if current == 0:
-            yield event.plain_result(f"⚠️ {name} 当前数量为 0，无法扣减")
-            return
-
+        # v2.0.1: 移除“数量为0无法扣减”的限制，允许扣减到负数
         new_count = self._update_count(username, name, -delta)
         yield event.plain_result(f"✅ 已扣减 {name} {delta}，剩余 {new_count}（用户：{username}）")
 
@@ -418,12 +414,12 @@ class TallyPlugin(Star):
             logger.error(f"导出失败: {e}")
             yield event.plain_result(f"⚠️ 导出失败：{e}")
 
-    @filter.command("表格帮助")
-    @filter.command("帮助")
-    @filter.command("菜单")
+    # ==================== 帮助指令（无绑定检查，3个别名） ====================
+    @filter.command("记录帮助", "帮助", "菜单")
     async def help(self, event: AstrMessageEvent):
         """
         显示仓库管理员插件的所有命令和使用说明
+        本命令无需绑定，随时可用
         """
         help_text = (
             "📖 **仓库管理员 - 使用帮助**\n"
@@ -436,7 +432,7 @@ class TallyPlugin(Star):
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "📌 **仓库管理指令**\n"
             "  `记录 名称 数量` - 增加物品库存（如：记录 美顺 1）\n"
-            "  `扣减 名称 数量` - 减少物品库存（如：扣减 美顺 1）\n"
+            "  `扣减 名称 数量` - 减少物品库存（允许为负数，如：扣减 美顺 1）\n"
             "  `添加 名称`       - 新增物品到仓库（如：添加 苹果）\n"
             "  `表格`            - 查看完整操作记录\n"
             "  `导出`            - 导出为 Excel 文件\n"
