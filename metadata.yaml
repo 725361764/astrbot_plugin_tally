@@ -1,6 +1,6 @@
 name: astrbot_plugin_tally
 display_name: 仓库管理员
-version: 2.1.2
+version: 3.0.4
 short_desc: 多用户数据记录与管理工具
 desc: 支持多用户数据隔离的记录、扣减、表格导出插件，适用于库存管理、每日打卡、积分统计等场景
 author: 请叫我大王
