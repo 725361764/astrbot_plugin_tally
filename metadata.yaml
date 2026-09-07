@@ -1,6 +1,6 @@
 name: astrbot_plugin_tally
 display_name: 仓库管理员
-version: 3.0.4
+version: 3.0.6
 short_desc: 多用户数据记录与管理工具，支持导出文件远程下载
 desc: |
   支持多用户数据隔离的记录、扣减、表格导出插件，
