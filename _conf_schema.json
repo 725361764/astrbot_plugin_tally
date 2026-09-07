@@ -1,0 +1,17 @@
+{
+  "upload_url": {
+    "type": "string",
+    "default": "https://xlsx.725361764.cn/upload.php",
+    "description": "文件上传服务器地址"
+  },
+  "api_token": {
+    "type": "string",
+    "default": "your-secret-token-here",
+    "description": "API 安全令牌（需与服务器端一致）"
+  },
+  "expire_hours": {
+    "type": "int",
+    "default": 24,
+    "description": "下载链接有效期（小时）"
+  }
+}

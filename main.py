@@ -1,5 +1,7 @@
 import re
 import json
+import aiohttp
+import ssl
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -16,7 +18,7 @@ except ImportError:
 
 
 class TallyPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
         data_path = Path(get_astrbot_data_path()) / "plugin_data" / self.name
         data_path.mkdir(parents=True, exist_ok=True)
@@ -29,6 +31,16 @@ class TallyPlugin(Star):
 
         self.bindings: Dict[str, str] = {}
         self.user_data: Dict[str, Dict] = {}
+
+        # 从传入的 config 中读取配置
+        config = config or {}
+        self.upload_url = config.get('upload_url', 'https://xlsx.725361764.cn/upload.php')
+        self.api_token = config.get('api_token', 'your-secret-token-here')
+        self.expire_hours = config.get('expire_hours', 24)
+
+        logger.info(f"🌐 上传地址: {self.upload_url}")
+        logger.info(f"🔑 API Token: {'*' * len(self.api_token) if self.api_token else '未设置'}")
+        logger.info(f"⏰ 有效期: {self.expire_hours} 小时")
 
         self._load_bindings()
         self._load_user_data()
@@ -104,10 +116,9 @@ class TallyPlugin(Star):
         self._save_user_data()
 
     def _update_count(self, username: str, name: str, delta: int) -> int:
-        """更新数量，允许负数"""
         counts = self._get_user_counts(username)
         current = counts.get(name, 0)
-        new_count = current + delta  # v2.0.1: 移除 max(0) 限制，允许负数
+        new_count = current + delta
         counts[name] = new_count
         self._add_history(username, name, delta, new_count)
         return new_count
@@ -147,10 +158,6 @@ class TallyPlugin(Star):
 
     @filter.command("新增用户名")
     async def add_user(self, event: AstrMessageEvent):
-        """
-        创建新的仓库管理员账户并绑定到当前账号
-        格式：新增用户名 用户名
-        """
         message = event.message_str.strip()
         parts = message.split(maxsplit=1)
         if len(parts) < 2:
@@ -175,10 +182,6 @@ class TallyPlugin(Star):
 
     @filter.command("绑定用户名")
     async def bind_user(self, event: AstrMessageEvent):
-        """
-        将当前账号绑定到已存在的仓库管理员账户
-        格式：绑定用户名 用户名
-        """
         message = event.message_str.strip()
         parts = message.split(maxsplit=1)
         if len(parts) < 2:
@@ -200,10 +203,6 @@ class TallyPlugin(Star):
 
     @filter.command("解除绑定")
     async def unbind_user(self, event: AstrMessageEvent):
-        """
-        解除当前账号与仓库管理员账户的绑定
-        格式：解除绑定
-        """
         sender_id = str(event.get_sender_id())
         if sender_id not in self.bindings:
             yield event.plain_result("⚠️ 您当前未绑定任何用户名")
@@ -214,10 +213,6 @@ class TallyPlugin(Star):
 
     @filter.command("删除用户名")
     async def delete_user(self, event: AstrMessageEvent):
-        """
-        永久删除指定的仓库管理员账户及其所有数据（不可恢复）
-        格式：删除用户名 用户名
-        """
         message = event.message_str.strip()
         parts = message.split(maxsplit=1)
         if len(parts) < 2:
@@ -244,10 +239,6 @@ class TallyPlugin(Star):
 
     @filter.command("记录")
     async def record(self, event: AstrMessageEvent):
-        """
-        增加指定物品或项目的库存数量
-        格式：记录 名称 数量
-        """
         username, err = await self._ensure_binding(event)
         if username is None:
             yield event.plain_result(err)
@@ -275,10 +266,6 @@ class TallyPlugin(Star):
 
     @filter.command("扣减")
     async def deduct(self, event: AstrMessageEvent):
-        """
-        减少指定物品或项目的库存数量（允许扣减为负数）
-        格式：扣减 名称 数量
-        """
         username, err = await self._ensure_binding(event)
         if username is None:
             yield event.plain_result(err)
@@ -301,16 +288,11 @@ class TallyPlugin(Star):
             yield event.plain_result("⚠️ 扣减数量必须为正数")
             return
 
-        # v2.0.1: 移除“数量为0无法扣减”的限制，允许扣减到负数
         new_count = self._update_count(username, name, -delta)
         yield event.plain_result(f"✅ 已扣减 {name} {delta}，剩余 {new_count}（用户：{username}）")
 
     @filter.command("添加")
     async def add_entry(self, event: AstrMessageEvent):
-        """
-        添加新的物品或项目到仓库清单（初始数量为0）
-        格式：添加 名称
-        """
         username, err = await self._ensure_binding(event)
         if username is None:
             yield event.plain_result(err)
@@ -330,10 +312,6 @@ class TallyPlugin(Star):
 
     @filter.command("表格")
     async def show_table(self, event: AstrMessageEvent):
-        """
-        查看当前仓库管理员账户的完整操作记录
-        格式：表格
-        """
         username, err = await self._ensure_binding(event)
         if username is None:
             yield event.plain_result(err)
@@ -345,12 +323,18 @@ class TallyPlugin(Star):
             return
 
         total = len(history)
+        display_history = history[-20:] if total > 20 else history
+        display_count = len(display_history)
+
         lines = []
-        lines.append(f"📊 操作记录（用户：{username}，共{total}条）")
+        if total > 20:
+            lines.append(f"📊 操作记录（用户：{username}，共{total}条，显示最近{display_count}条）")
+        else:
+            lines.append(f"📊 操作记录（用户：{username}，共{total}条）")
         lines.append("时间 | 名称 | 变动 | 剩余")
 
         last_date = None
-        for rec in history:
+        for rec in display_history:
             dt = datetime.strptime(rec['time'], "%Y-%m-%d %H:%M:%S")
             date_str = dt.strftime("%Y-%m-%d")
             time_str = dt.strftime("%H:%M:%S")
@@ -370,7 +354,7 @@ class TallyPlugin(Star):
     @filter.command("导出")
     async def export(self, event: AstrMessageEvent):
         """
-        将当前仓库管理员账户的完整记录导出为 Excel 文件
+        导出记录并上传到远程服务器生成下载链接
         格式：导出
         """
         username, err = await self._ensure_binding(event)
@@ -388,6 +372,7 @@ class TallyPlugin(Star):
             return
 
         try:
+            # 生成 Excel 文件
             wb = Workbook()
             ws = wb.active
             ws.title = "记录"
@@ -404,23 +389,58 @@ class TallyPlugin(Star):
             file_path = temp_dir / filename
             wb.save(file_path)
 
-            yield event.plain_result(f"✅ 已生成导出文件：{filename}")
-            try:
-                from astrbot.api.message import FileMessage
-                yield FileMessage(path=str(file_path))
-            except ImportError:
-                yield event.plain_result(f"⚠️ 当前环境不支持自动发送文件，请手动下载：{file_path}")
+            # 创建忽略 SSL 验证的 connector
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+
+            logger.info(f"📤 上传文件到: {self.upload_url}")
+            logger.info(f"🔑 使用 API Token: {'*' * len(self.api_token) if self.api_token else '未设置'}")
+
+            async with aiohttp.ClientSession(connector=connector) as session:
+                data = aiohttp.FormData()
+                data.add_field('file',
+                               open(file_path, 'rb'),
+                               filename=filename,
+                               content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                data.add_field('expire_hours', str(self.expire_hours))
+                headers = {'X-API-Token': self.api_token}
+
+                async with session.post(self.upload_url, data=data, headers=headers) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        yield event.plain_result(f"⚠️ 上传失败（HTTP {resp.status}）：{text}")
+                        file_path.unlink(missing_ok=True)
+                        return
+                    result = await resp.json()
+                    if not result.get('success'):
+                        yield event.plain_result(f"⚠️ 上传失败：{result.get('error', '未知错误')}")
+                        file_path.unlink(missing_ok=True)
+                        return
+
+                    code = result['code']
+                    password = result['password']
+                    download_url = result['download_url']
+                    expire_at = result['expire_at']
+
+                    yield event.plain_result(
+                        f"✅ 已生成并上传导出文件\n"
+                        f"📎 文件名：{filename}\n"
+                        f"🔗 下载链接：{download_url}\n"
+                        f"🔑 访问密码：{password}\n"
+                        f"⏰ 有效时间：{self.expire_hours} 小时（到期：{expire_at}）\n"
+                        f"💡 访问链接后输入密码即可下载"
+                    )
+                    file_path.unlink(missing_ok=True)
+
         except Exception as e:
             logger.error(f"导出失败: {e}")
             yield event.plain_result(f"⚠️ 导出失败：{e}")
 
-    # ==================== 帮助指令（无绑定检查，3个别名） ====================
+    # ==================== 帮助指令 ====================
     @filter.command("记录帮助", "帮助", "菜单")
     async def help(self, event: AstrMessageEvent):
-        """
-        显示仓库管理员插件的所有命令和使用说明
-        本命令无需绑定，随时可用
-        """
         help_text = (
             "📖 **仓库管理员 - 使用帮助**\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -434,8 +454,8 @@ class TallyPlugin(Star):
             "  `记录 名称 数量` - 增加物品库存（如：记录 美顺 1）\n"
             "  `扣减 名称 数量` - 减少物品库存（允许为负数，如：扣减 美顺 1）\n"
             "  `添加 名称`       - 新增物品到仓库（如：添加 苹果）\n"
-            "  `表格`            - 查看完整操作记录\n"
-            "  `导出`            - 导出为 Excel 文件\n"
+            "  `表格`            - 查看最近20条操作记录\n"
+            "  `导出`            - 导出全部记录，生成远程下载链接\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "💡 提示：不同账号绑定同一用户名可共享数据\n"
             "⚠️ 删除用户名将永久删除所有数据，请谨慎操作\n"

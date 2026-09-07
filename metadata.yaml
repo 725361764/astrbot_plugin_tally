@@ -1,8 +1,11 @@
 name: astrbot_plugin_tally
 display_name: 仓库管理员
 version: 3.0.4
-short_desc: 多用户数据记录与管理工具
-desc: 支持多用户数据隔离的记录、扣减、表格导出插件，适用于库存管理、每日打卡、积分统计等场景
+short_desc: 多用户数据记录与管理工具，支持导出文件远程下载
+desc: |
+  支持多用户数据隔离的记录、扣减、表格导出插件，
+  适用于库存管理、每日打卡、积分统计等场景。
+  导出文件自动上传至远程服务器，生成带密码的下载链接。
 author: 请叫我大王
 repo: https://github.com/725361764/astrbot_plugin_tally
 astrbot_version: ">=4.9.2"
@@ -11,7 +14,12 @@ tags:
   - 记录
   - 库存管理
   - 多用户
+  - 文件上传
 support_platforms:
   - aiocqhttp
   - weixin_oc
 logo: logo.png
+config:
+  upload_url: "https://xlsx.725361764.cn/upload.php"
+  api_token: "your-secret-token-here"
+  expire_hours: 24
